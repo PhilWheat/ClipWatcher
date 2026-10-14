@@ -22,13 +22,19 @@ public class UrlFileStoreTests : IDisposable
     [Fact]
     public void SaveLoad_RoundTrips()
     {
-        var store = new UrlFileStore(File);
+        var store = new UrlFileStore(File) { SortAfterAdd = false };
         store.AddRange(new[] { "https://a.com", "b.org" });
         store.Save();
 
         var reloaded = new UrlFileStore(File);
         reloaded.Load();
         Assert.Equal(new[] { "https://a.com", "b.org" }, reloaded.Urls);
+    }
+
+    [Fact]
+    public void SortAfterAdd_DefaultsToTrue()
+    {
+        Assert.True(new UrlFileStore(File).SortAfterAdd);
     }
 
     [Fact]

@@ -7,7 +7,7 @@ public sealed class UrlFileStore
     public UrlFileStore(string filePath) => FilePath = filePath;
 
     public string FilePath { get; set; }
-    public bool SortAfterAdd { get; set; } = false;
+    public bool SortAfterAdd { get; set; } = true;
     public IReadOnlyList<string> Urls => _urls;
 
     public void Load()
