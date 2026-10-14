@@ -25,9 +25,10 @@ public sealed class UrlFileStore
     public int AddRange(IEnumerable<string> candidates)
     {
         var added = 0;
-        foreach (var url in candidates)
+        foreach (var candidate in candidates)
         {
-            if (_urls.Contains(url, StringComparer.OrdinalIgnoreCase)) continue;
+            var url = candidate.Trim();
+            if (url.Length == 0 || _urls.Contains(url, StringComparer.OrdinalIgnoreCase)) continue;
             _urls.Add(url);
             added++;
         }

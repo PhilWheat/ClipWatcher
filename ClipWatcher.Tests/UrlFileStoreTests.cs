@@ -86,4 +86,23 @@ public class UrlFileStoreTests : IDisposable
         Assert.Empty(store.Urls);
         Assert.Empty(System.IO.File.ReadAllLines(File));
     }
+
+    [Fact]
+    public void Load_DedupesCaseInsensitive()
+    {
+        System.IO.File.WriteAllLines(File, new[] { "a.com", "A.COM", "b.com" });
+        var store = new UrlFileStore(File);
+        store.Load();
+        Assert.Equal(new[] { "a.com", "b.com" }, store.Urls);
+    }
+
+    [Fact]
+    public void Backup_MissingFile_WritesEmptyBackupAndEmptyWorkingFile()
+    {
+        var store = new UrlFileStore(File);
+        var backupPath = store.Backup();
+        Assert.True(System.IO.File.Exists(backupPath));
+        Assert.Empty(System.IO.File.ReadAllLines(backupPath));
+        Assert.Empty(System.IO.File.ReadAllLines(File));
+    }
 }
