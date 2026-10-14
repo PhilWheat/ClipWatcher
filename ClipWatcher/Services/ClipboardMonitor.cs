@@ -18,10 +18,12 @@ public sealed class ClipboardMonitor : IDisposable
     private IntPtr _hwnd;
     private bool _registered;
 
-    public void Attach(IntPtr hwnd)
+    public bool Attach(IntPtr hwnd)
     {
+        if (_registered) return true;
         _hwnd = hwnd;
         _registered = AddClipboardFormatListener(hwnd);
+        return _registered;
     }
 
     public void Detach()
