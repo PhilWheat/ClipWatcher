@@ -4,9 +4,14 @@ namespace ClipWatcher.Services;
 
 public static class UrlExtractor
 {
+    private const string HostPattern =
+        @"[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?)*\.[a-zA-Z]{2,}";
+
     private const string UrlPattern =
-        @"https?://[^\s""'<>]+|www\.[^\s""'<>]+|" +
-        @"[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?)*\.[a-zA-Z]{2,}(?::\d{1,5})?(?:[/?#][^\s""'<>]*)?";
+        @"https?://[^\s""'<>]+|www\." + HostPattern + @"(?::\d{1,5})?(?:[/?#][^\s""'<>]*)?|" +
+        HostPattern + @"(?::\d{1,5})?(?:[/?#][^\s""'<>]*)?";
+
+    private static readonly Regex UrlRegex = new(UrlPattern, RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1));
 
     private static readonly HashSet<string> BlockedExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -21,7 +26,7 @@ public static class UrlExtractor
         var results = new List<string>();
         if (string.IsNullOrWhiteSpace(text)) return results;
 
-        foreach (Match match in Regex.Matches(text, UrlPattern, RegexOptions.IgnoreCase))
+        foreach (Match match in UrlRegex.Matches(text))
         {
             var url = match.Value.TrimEnd('.', ',', ';', ':', '!', '?', ')', ']', '}', '"', '\'');
             if (url.Length == 0) continue;

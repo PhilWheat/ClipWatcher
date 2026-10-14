@@ -72,4 +72,28 @@ public class UrlExtractorTests
     {
         Assert.Empty(UrlExtractor.Extract(text));
     }
+
+    [Fact]
+    public void Extract_KeepsFileExtensionsInPaths()
+    {
+        Assert.Equal(new[] { "https://site.com/file.pdf" }, UrlExtractor.Extract("get https://site.com/file.pdf now"));
+    }
+
+    [Fact]
+    public void Extract_TrimsPunctuationOnBareDomain()
+    {
+        Assert.Equal(new[] { "example.com" }, UrlExtractor.Extract("visit example.com, ok"));
+    }
+
+    [Fact]
+    public void Extract_HandlesUppercaseScheme()
+    {
+        Assert.Equal(new[] { "HTTPS://Example.COM" }, UrlExtractor.Extract("see HTTPS://Example.COM now"));
+    }
+
+    [Fact]
+    public void Extract_IgnoresJunkWww()
+    {
+        Assert.Empty(UrlExtractor.Extract("text www.x here"));
+    }
 }
