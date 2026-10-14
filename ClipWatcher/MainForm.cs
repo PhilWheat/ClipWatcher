@@ -97,6 +97,7 @@ public sealed class MainForm : Form
             if (_pendingRefresh)
             {
                 _pendingRefresh = false;
+                FlushEdits();
                 RefreshView();
             }
         };
@@ -193,14 +194,12 @@ public sealed class MainForm : Form
         _pendingSave = false;
         _store.SetContents(_contentBox.Lines);
         if (_deferredAdds.Count > 0)
-        {
             _store.AddRange(_deferredAdds);
-            _deferredAdds.Clear();
-        }
         UpdateCountLabel();
         try
         {
             _store.Save();
+            _deferredAdds.Clear();
             SetStatus($"Saved {DateTime.Now:h:mm tt}");
             return true;
         }
@@ -227,16 +226,18 @@ public sealed class MainForm : Form
         _settings.FilePath = dialog.FileName;
         SaveSettings();
         _pathBox.Text = _store.FilePath;
+        var loadFailed = false;
         try
         {
             _store.Load();
         }
         catch (Exception ex)
         {
+            loadFailed = true;
             SetStatus($"Could not read file: {ex.Message}");
         }
         RefreshView();
-        SetStatus($"Now tracking {Path.GetFileName(_store.FilePath)}");
+        if (!loadFailed) SetStatus($"Now tracking {Path.GetFileName(_store.FilePath)}");
     }
 
     private void OnBackup(object? sender, EventArgs e)
