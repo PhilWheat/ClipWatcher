@@ -1,9 +1,12 @@
+using System.Diagnostics;
 using System.Text.Json;
 
 namespace ClipWatcher.Services;
 
 public sealed class AppSettings
 {
+    private static readonly JsonSerializerOptions Indented = new() { WriteIndented = true };
+
     public string FilePath { get; set; } = Path.Combine(SettingsDir, "urls.txt");
     public bool SortAfterAdd { get; set; } = true;
     public bool MonitoringEnabled { get; set; } = true;
@@ -25,6 +28,7 @@ public sealed class AppSettings
         }
         catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException)
         {
+            Debug.WriteLine($"ClipWatcher: settings unreadable, using defaults ({ex.GetType().Name})");
         }
         return new AppSettings();
     }
@@ -32,6 +36,8 @@ public sealed class AppSettings
     public void Save()
     {
         Directory.CreateDirectory(SettingsDir);
-        File.WriteAllText(SettingsPath, JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true }));
+        var tmp = SettingsPath + ".tmp";
+        File.WriteAllText(tmp, JsonSerializer.Serialize(this, Indented));
+        File.Move(tmp, SettingsPath, overwrite: true);
     }
 }
