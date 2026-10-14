@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using System.Text.RegularExpressions;
 using ClipWatcher.Services;
 
 namespace ClipWatcher;
@@ -22,6 +23,8 @@ public sealed class MainForm : Form
 
     private bool _suppressEditEvents;
     private bool _pendingSave;
+    private bool _pendingRefresh;
+    private readonly List<string> _deferredAdds = new();
     private bool _expanded = true;
     private int _collapseDelta;
 
@@ -44,7 +47,7 @@ public sealed class MainForm : Form
         {
             _monitor.IsEnabled = _monitorCheck.Checked;
             _settings.MonitoringEnabled = _monitorCheck.Checked;
-            _settings.Save();
+            SaveSettings();
         };
 
         _sortCheck.Text = "Sort after add";
@@ -55,7 +58,7 @@ public sealed class MainForm : Form
         {
             _store.SortAfterAdd = _sortCheck.Checked;
             _settings.SortAfterAdd = _sortCheck.Checked;
-            _settings.Save();
+            SaveSettings();
         };
 
         _pathBox.Location = new Point(12, 40);
@@ -89,6 +92,14 @@ public sealed class MainForm : Form
         _contentBox.Font = new Font("Consolas", 9.75f);
         _contentBox.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
         _contentBox.TextChanged += OnContentChanged;
+        _contentBox.Leave += (_, _) =>
+        {
+            if (_pendingRefresh)
+            {
+                _pendingRefresh = false;
+                RefreshView();
+            }
+        };
 
         _statusStrip.Items.Add(_statusLabel);
 
@@ -119,7 +130,14 @@ public sealed class MainForm : Form
         if (!_monitor.Attach(Handle))
             SetStatus("Clipboard monitoring unavailable (listener registration failed)");
         _monitor.ClipboardUpdated += OnClipboardUpdated;
-        _store.Load();
+        try
+        {
+            _store.Load();
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"Could not read file: {ex.Message}");
+        }
         RefreshView();
         if (string.IsNullOrEmpty(_statusLabel.Text)) SetStatus("Ready");
     }
@@ -130,7 +148,9 @@ public sealed class MainForm : Form
         try { text = Clipboard.GetText(); }
         catch (ExternalException) { return; }
 
-        var candidates = UrlExtractor.Extract(text);
+        IReadOnlyList<string> candidates;
+        try { candidates = UrlExtractor.Extract(text); }
+        catch (RegexMatchTimeoutException) { return; }
         if (candidates.Count == 0) return;
 
         _store.SetContents(_contentBox.Lines);
@@ -147,7 +167,15 @@ public sealed class MainForm : Form
             SetStatus($"Save failed: {ex.Message}");
             return;
         }
-        RefreshView();
+        if (_contentBox.Focused)
+        {
+            _pendingRefresh = true;
+            _deferredAdds.AddRange(candidates);
+        }
+        else
+        {
+            RefreshView();
+        }
         SetStatus($"Added {added} URL(s) · saved {DateTime.Now:h:mm tt}");
     }
 
@@ -159,22 +187,29 @@ public sealed class MainForm : Form
         _debounce.Start();
     }
 
-    private void FlushEdits()
+    private bool FlushEdits()
     {
-        if (!_pendingSave) return;
+        if (!_pendingSave) return true;
         _pendingSave = false;
         _store.SetContents(_contentBox.Lines);
+        if (_deferredAdds.Count > 0)
+        {
+            _store.AddRange(_deferredAdds);
+            _deferredAdds.Clear();
+        }
+        UpdateCountLabel();
         try
         {
             _store.Save();
             SetStatus($"Saved {DateTime.Now:h:mm tt}");
+            return true;
         }
         catch (Exception ex)
         {
             _pendingSave = true;
             SetStatus($"Save failed: {ex.Message}");
+            return false;
         }
-        UpdateCountLabel();
     }
 
     private void OnBrowse(object? sender, EventArgs e)
@@ -187,12 +222,19 @@ public sealed class MainForm : Form
         };
         if (dialog.ShowDialog(this) != DialogResult.OK) return;
 
-        FlushEdits();
+        if (!FlushEdits()) return;
         _store.FilePath = dialog.FileName;
         _settings.FilePath = dialog.FileName;
-        _settings.Save();
+        SaveSettings();
         _pathBox.Text = _store.FilePath;
-        _store.Load();
+        try
+        {
+            _store.Load();
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"Could not read file: {ex.Message}");
+        }
         RefreshView();
         SetStatus($"Now tracking {Path.GetFileName(_store.FilePath)}");
     }
@@ -205,7 +247,7 @@ public sealed class MainForm : Form
         if (answer != DialogResult.OK) return;
 
         _debounce.Stop();
-        FlushEdits();
+        if (!FlushEdits()) return;
         try
         {
             var backupPath = _store.Backup();
@@ -251,12 +293,24 @@ public sealed class MainForm : Form
 
     private void SetStatus(string message) => _statusLabel.Text = message;
 
+    private void SaveSettings()
+    {
+        try
+        {
+            _settings.Save();
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"Could not save settings: {ex.Message}");
+        }
+    }
+
     private void OnFormClosing(object? sender, FormClosingEventArgs e)
     {
         _debounce.Stop();
         FlushEdits();
         _monitor.ClipboardUpdated -= OnClipboardUpdated;
         _monitor.Detach();
-        _settings.Save();
+        SaveSettings();
     }
 }
