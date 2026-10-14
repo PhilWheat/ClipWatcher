@@ -129,7 +129,10 @@ public sealed class MainForm : Form
     private void OnLoad(object? sender, EventArgs e)
     {
         if (!_monitor.Attach(Handle))
+        {
+            _monitorCheck.Checked = false;
             SetStatus("Clipboard monitoring unavailable (listener registration failed)");
+        }
         _monitor.ClipboardUpdated += OnClipboardUpdated;
         try
         {
@@ -147,7 +150,7 @@ public sealed class MainForm : Form
     {
         string text;
         try { text = Clipboard.GetText(); }
-        catch (ExternalException) { return; }
+        catch (Exception ex) when (ex is ExternalException or COMException or OutOfMemoryException) { return; }
 
         IReadOnlyList<string> candidates;
         try { candidates = UrlExtractor.Extract(text); }
@@ -155,6 +158,8 @@ public sealed class MainForm : Form
         if (candidates.Count == 0) return;
 
         _store.SetContents(_contentBox.Lines);
+        if (_deferredAdds.Count > 0)
+            _store.AddRange(_deferredAdds);
         var added = _store.AddRange(candidates);
         if (added == 0) return;
 
@@ -280,6 +285,7 @@ public sealed class MainForm : Form
 
     private void RefreshView()
     {
+        _deferredAdds.Clear();
         _suppressEditEvents = true;
         _contentBox.Text = string.Join(Environment.NewLine, _store.Urls);
         _suppressEditEvents = false;
@@ -309,6 +315,7 @@ public sealed class MainForm : Form
     private void OnFormClosing(object? sender, FormClosingEventArgs e)
     {
         _debounce.Stop();
+        _debounce.Dispose();
         FlushEdits();
         _monitor.ClipboardUpdated -= OnClipboardUpdated;
         _monitor.Detach();
