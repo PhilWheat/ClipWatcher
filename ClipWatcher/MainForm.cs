@@ -34,6 +34,11 @@ public sealed class MainForm : Form
         _store = new UrlFileStore(_settings.FilePath) { SortAfterAdd = _settings.SortAfterAdd };
 
         Text = "ClipWatcher";
+        using (var iconStream = typeof(MainForm).Assembly.GetManifestResourceStream("ClipWatcher.app.ico"))
+        {
+            if (iconStream is not null)
+                Icon = new Icon(iconStream);
+        }
         Width = 660;
         Height = 520;
         MinimumSize = new Size(480, 240);
